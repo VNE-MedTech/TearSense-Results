@@ -449,8 +449,8 @@ def train_lr(X_train, y_train, X_test, cat_cols, feature_names, exclude_features
         penalty='l2',
         C=1, # default is 1
         solver='lbfgs',
-        max_iter=2,
-        class_weight='balanced'
+        max_iter=1000,
+        class_weight=None
     )
 
     # lr_model = LogisticRegression()

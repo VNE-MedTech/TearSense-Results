@@ -47,6 +47,11 @@ except ImportError:
     raise ImportError("shap is required.  pip install shap")
 
 from shap_config import rename_features
+from runtime.externer_assessor_LogR import (
+    prepare_data_for_lr,
+    prepare_data_for_lr_transform,
+    align_columns,
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -560,12 +565,23 @@ def main(model_path, output_dir=None, background_k=50):
             X_train_raw = bundle.get('X_train_all')
             if not isinstance(X_train_raw, pd.DataFrame):
                 X_train_raw = pd.DataFrame(X_train_raw, columns=all_feat)
-            X_test_df = pd.DataFrame(X_test_shap, columns=raw_feat)
+            else:
+                X_train_raw = pd.DataFrame(X_train_raw.values, columns=all_feat)
+            X_test_raw_df = bundle.get('X_test_exact')
+            if not isinstance(X_test_raw_df, pd.DataFrame):
+                X_test_raw_df = pd.DataFrame(X_test_raw_df, columns=all_feat)
+            else:
+                X_test_raw_df = pd.DataFrame(X_test_raw_df.values, columns=all_feat)
             
-            # Recreate dummy encoding for categoricals
-            X_train_enc = pd.get_dummies(X_train_raw, columns=[c for c in cat_cols if c in X_train_raw.columns], dummy_na=True)
-            X_test_enc = pd.get_dummies(X_test_df, columns=[c for c in cat_cols if c in X_test_df.columns], dummy_na=True)
-            X_test_enc = X_test_enc.reindex(columns=X_train_enc.columns, fill_value=0)
+            # Rebuild the LR design matrix EXACTLY as the trainer's LR did so the
+            # one-hot names match lr_coefficients.csv (e.g. 'InsuranceType_NAN', not
+            # 'InsuranceType_nan'). A bare get_dummies(dummy_na=True) mismatches names
+            # and emits a duplicate '_nan' column (missing is stored as the literal
+            # string 'nan'), which breaks reindex. See externer_assessor_LogR.prepare_data_for_lr.
+            _cat_in = [c for c in cat_cols if c in X_train_raw.columns]
+            X_train_enc, _lr_medians = prepare_data_for_lr(X_train_raw, _cat_in)
+            X_test_enc = prepare_data_for_lr_transform(X_test_raw_df, _cat_in, _lr_medians)
+            X_train_enc, X_test_enc = align_columns(X_train_enc, X_test_enc)
             
             lr_cols = [c for c in w_dict.keys() if c in X_train_enc.columns]
             X_train_lr = X_train_enc[lr_cols].fillna(0).astype(float)
