@@ -14,4 +14,9 @@ catboost_info/
 /Archive
 /external_assessor
 /outputs
+
+# generated analysis / run outputs
+/combined_analysis
+/baseline_comparison
+/21032026_223056_14016
 **/**.sh
